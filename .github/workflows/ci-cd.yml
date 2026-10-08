@@ -1,0 +1,176 @@
+# Oficina Virtual (Angular) · integración y despliegue continuos
+#
+# Pull request a develop o main → integración: dependencias, lint, pruebas, auditoría y compilación.
+# Integración en develop → construye y despliega en test (automático).
+# Integración en main    → construye y despliega en producción, con aprobación del ambiente «produccion»,
+#                          y registra la versión.
+#
+# Variables del repositorio (Settings › Secrets and variables › Actions › Variables):
+#   NODE_VERSION          versión de Node del proyecto (Angular 11: 14)
+#   RUNNER_TEST           etiquetas del agente de test, en JSON. Ej.: ["self-hosted","ov-test"]
+#   RUNNER_PRODUCCION     etiquetas del agente de producción, en JSON. Ej.: ["self-hosted","ov-prod"]
+# Variables de cada ambiente (Settings › Environments › test / produccion):
+#   DIR_BASE              carpeta de publicación en el servidor. Ej.: /var/www/oficina-virtual
+#   URL_SALUD             URL para la prueba de humo. Ej.: http://localhost/
+#   RECARGAR              (opcional) comando para recargar el servidor web
+# Scripts npm esperados en package.json: lint, test:ci y build (los que no existan se omiten, salvo build).
+name: Oficina Virtual · CI/CD
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  ARTEFACTO: oficina-virtual-${{ github.sha }}
+
+jobs:
+  integracion:
+    name: Integración
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ vars.NODE_VERSION || '14' }}
+          cache: npm
+
+      - name: Dependencias
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint --if-present
+
+      - name: Pruebas
+        run: npm run test:ci --if-present
+
+      - name: Auditoría de dependencias (vulnerabilidades altas o críticas)
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Compilación
+        run: npm run build
+
+      - name: Empaquetar
+        if: github.event_name != 'pull_request'
+        run: |
+          indice=$(find dist -name index.html | head -1)
+          if [ -z "$indice" ]; then echo "No se encontró index.html en dist/"; exit 1; fi
+          tar -czf "$ARTEFACTO.tar.gz" -C "$(dirname "$indice")" .
+
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
+        with:
+          name: ${{ env.ARTEFACTO }}
+          path: ${{ env.ARTEFACTO }}.tar.gz
+          retention-days: 30
+
+  test:
+    name: Despliegue en test
+    needs: integracion
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/develop'
+    runs-on: ${{ fromJSON(vars.RUNNER_TEST || '["self-hosted","ov-test"]') }}
+    environment: test
+    concurrency:
+      group: oficina-virtual-test
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ARTEFACTO }}
+
+      - name: Preparar ensayo (solo repositorio de prueba)
+        if: vars.MODO_ENSAYO == 'true'
+        run: bash .github/scripts/preparar-ensayo.sh angular "${{ vars.DIR_BASE }}"
+
+      - name: Desplegar
+        env:
+          RECARGAR: ${{ vars.RECARGAR }}
+        run: |
+          echo "ANTES=$(readlink -f '${{ vars.DIR_BASE }}/current' 2>/dev/null || true)" >> "$GITHUB_ENV"
+          rm -rf version && mkdir version && tar -xzf "$ARTEFACTO.tar.gz" -C version
+          bash .github/scripts/desplegar.sh --tipo angular --base "${{ vars.DIR_BASE }}" \
+            --origen "$PWD/version" --id "${GITHUB_SHA::7}"
+
+      - name: Prueba de humo
+        run: bash .github/scripts/prueba-humo.sh "${{ vars.URL_SALUD }}"
+
+      - name: Revertir si falló después de activar la versión nueva
+        if: failure()
+        env:
+          RECARGAR: ${{ vars.RECARGAR }}
+        run: |
+          if [ -n "$ANTES" ] && [ "$(readlink -f '${{ vars.DIR_BASE }}/current')" != "$ANTES" ]; then
+            bash .github/scripts/desplegar.sh --tipo angular --base "${{ vars.DIR_BASE }}" --revertir
+          else
+            echo "La versión activa no cambió; no hay nada que revertir."
+          fi
+
+  produccion:
+    name: Despliegue en producción
+    needs: integracion
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ${{ fromJSON(vars.RUNNER_PRODUCCION || '["self-hosted","ov-prod"]') }}
+    environment: produccion
+    concurrency:
+      group: oficina-virtual-produccion
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ARTEFACTO }}
+
+      - name: Preparar ensayo (solo repositorio de prueba)
+        if: vars.MODO_ENSAYO == 'true'
+        run: bash .github/scripts/preparar-ensayo.sh angular "${{ vars.DIR_BASE }}"
+
+      - name: Desplegar
+        env:
+          RECARGAR: ${{ vars.RECARGAR }}
+        run: |
+          echo "ANTES=$(readlink -f '${{ vars.DIR_BASE }}/current' 2>/dev/null || true)" >> "$GITHUB_ENV"
+          rm -rf version && mkdir version && tar -xzf "$ARTEFACTO.tar.gz" -C version
+          bash .github/scripts/desplegar.sh --tipo angular --base "${{ vars.DIR_BASE }}" \
+            --origen "$PWD/version" --id "${GITHUB_SHA::7}"
+
+      - name: Prueba de humo
+        run: bash .github/scripts/prueba-humo.sh "${{ vars.URL_SALUD }}"
+
+      - name: Revertir si falló después de activar la versión nueva
+        if: failure()
+        env:
+          RECARGAR: ${{ vars.RECARGAR }}
+        run: |
+          if [ -n "$ANTES" ] && [ "$(readlink -f '${{ vars.DIR_BASE }}/current')" != "$ANTES" ]; then
+            bash .github/scripts/desplegar.sh --tipo angular --base "${{ vars.DIR_BASE }}" --revertir
+          else
+            echo "La versión activa no cambió; no hay nada que revertir."
+          fi
+
+  version:
+    name: Registrar versión
+    needs: produccion
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Etiqueta y notas de la versión
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          etiqueta="ov-$(date +%Y.%m.%d)-${GITHUB_RUN_NUMBER}"
+          gh release create "$etiqueta" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Oficina Virtual $etiqueta" --generate-notes
