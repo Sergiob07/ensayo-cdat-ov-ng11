@@ -52,9 +52,9 @@ jobs:
           done
           exit $faltan
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: ${{ vars.NODE_VERSION }}
           cache: npm
@@ -86,7 +86,7 @@ jobs:
           if [ -z "$indice" ]; then echo "No se encontró index.html en dist/"; exit 1; fi
           tar -czf "$ARTEFACTO.tar.gz" -C "$(dirname "$indice")" .
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: github.event_name != 'pull_request'
         with:
           name: ${{ env.ARTEFACTO }}
@@ -103,11 +103,11 @@ jobs:
       group: oficina-virtual-test
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           sparse-checkout: .github/scripts
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: ${{ env.ARTEFACTO }}
 
@@ -163,11 +163,11 @@ jobs:
           fi
           echo "El ambiente «produccion» exige aprobación."
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           sparse-checkout: .github/scripts
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: ${{ env.ARTEFACTO }}
 
