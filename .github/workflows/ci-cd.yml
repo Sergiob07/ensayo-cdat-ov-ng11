@@ -1,19 +1,22 @@
 # Oficina Virtual (Angular) · integración y despliegue continuos
 #
-# Pull request a develop o main → integración: dependencias, lint, pruebas, auditoría y compilación.
+# Pull request a develop o main → integración: configuración, dependencias, lint, pruebas, auditoría y compilación.
 # Integración en develop → construye y despliega en test (automático).
 # Integración en main    → construye y despliega en producción, con aprobación del ambiente «produccion»,
 #                          y registra la versión.
 #
-# Variables del repositorio (Settings › Secrets and variables › Actions › Variables):
-#   NODE_VERSION          versión de Node del proyecto (Angular 11: 14)
-#   RUNNER_TEST           etiquetas del agente de test, en JSON. Ej.: ["self-hosted","ov-test"]
-#   RUNNER_PRODUCCION     etiquetas del agente de producción, en JSON. Ej.: ["self-hosted","ov-prod"]
+# Variables del repositorio (Settings › Secrets and variables › Actions › Variables › Repository variables):
+#   NODE_VERSION          OBLIGATORIA. Versión de Node del proyecto (Angular 11: 14)
+#   RUNNER_TEST           OBLIGATORIA. Etiquetas del agente de test, en JSON. Ej.: ["self-hosted","ov-test"]
+#   RUNNER_PRODUCCION     OBLIGATORIA. Etiquetas del agente de producción, en JSON. Ej.: ["self-hosted","ov-prod"]
+#   COMANDO_BUILD         Opcional. Comando de compilación de producción (por defecto: npm run build).
+#                         Angular 11 o anterior: npx ng build --prod
 # Variables de cada ambiente (Settings › Environments › test / produccion):
 #   DIR_BASE              carpeta de publicación en el servidor. Ej.: /var/www/oficina-virtual
 #   URL_SALUD             URL para la prueba de humo. Ej.: http://localhost/
 #   RECARGAR              (opcional) comando para recargar el servidor web
-# Scripts npm esperados en package.json: lint, test:ci y build (los que no existan se omiten, salvo build).
+# Scripts de package.json: test:ci (obligatorio), lint (recomendado) y build.
+# Excepciones de auditoría aprobadas por TI: .github/auditoria-excepciones.json
 name: Oficina Virtual · CI/CD
 
 on:
@@ -32,29 +35,49 @@ env:
 jobs:
   integracion:
     name: Integración
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
+      - name: Validar configuración
+        env:
+          NODE_VERSION: ${{ vars.NODE_VERSION }}
+          RUNNER_TEST: ${{ vars.RUNNER_TEST }}
+          RUNNER_PRODUCCION: ${{ vars.RUNNER_PRODUCCION }}
+        run: |
+          faltan=0
+          for v in NODE_VERSION RUNNER_TEST RUNNER_PRODUCCION; do
+            if [ -z "${!v}" ]; then
+              echo "::error::Falta la variable del repositorio $v (Settings › Secrets and variables › Actions › Repository variables)"
+              faltan=1
+            fi
+          done
+          exit $faltan
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: ${{ vars.NODE_VERSION || '14' }}
+          node-version: ${{ vars.NODE_VERSION }}
           cache: npm
 
       - name: Dependencias
         run: npm ci
 
       - name: Lint
-        run: npm run lint --if-present
+        run: |
+          if node -e "process.exit((require('./package.json').scripts || {}).lint ? 0 : 1)"; then
+            npm run lint
+          else
+            echo "::warning::El proyecto no define el script «lint»; se recomienda agregarlo."
+          fi
 
       - name: Pruebas
-        run: npm run test:ci --if-present
+        run: npm run test:ci
 
       - name: Auditoría de dependencias (vulnerabilidades altas o críticas)
-        run: npm audit --omit=dev --audit-level=high
+        run: node .github/scripts/auditar-dependencias.js npm .github/auditoria-excepciones.json
 
       - name: Compilación
-        run: npm run build
+        run: ${{ vars.COMANDO_BUILD || 'npm run build' }}
 
       - name: Empaquetar
         if: github.event_name != 'pull_request'
@@ -74,7 +97,7 @@ jobs:
     name: Despliegue en test
     needs: integracion
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/develop'
-    runs-on: ${{ fromJSON(vars.RUNNER_TEST || '["self-hosted","ov-test"]') }}
+    runs-on: ${{ fromJSON(vars.RUNNER_TEST) }}
     environment: test
     concurrency:
       group: oficina-virtual-test
@@ -119,12 +142,27 @@ jobs:
     name: Despliegue en producción
     needs: integracion
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    runs-on: ${{ fromJSON(vars.RUNNER_PRODUCCION || '["self-hosted","ov-prod"]') }}
+    runs-on: ${{ fromJSON(vars.RUNNER_PRODUCCION) }}
     environment: produccion
+    permissions:
+      contents: read
+      actions: read
     concurrency:
       group: oficina-virtual-produccion
       cancel-in-progress: false
     steps:
+      - name: Verificar que producción exige aprobación
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          reglas=$(curl -fsS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/environments/produccion")
+          if ! echo "$reglas" | grep -q '"required_reviewers"'; then
+            echo "::error::El ambiente «produccion» no tiene revisores obligatorios (Settings › Environments › produccion › Required reviewers). No se despliega."
+            exit 1
+          fi
+          echo "El ambiente «produccion» exige aprobación."
+
       - uses: actions/checkout@v4
         with:
           sparse-checkout: .github/scripts
@@ -163,7 +201,7 @@ jobs:
   version:
     name: Registrar versión
     needs: produccion
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:

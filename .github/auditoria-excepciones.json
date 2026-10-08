@@ -1,0 +1,76 @@
+{
+  "excepciones": [
+    {
+      "id": "GHSA-39pv-4j6c-2g6v",
+      "motivo": "Vulnerabilidad de Angular 11, versión sin soporte; se corrige al actualizar Angular",
+      "aprobado_por": "TI (piloto)",
+      "vence": "2026-12-31"
+    },
+    {
+      "id": "GHSA-48r7-hpm6-gfxm",
+      "motivo": "Vulnerabilidad de Angular 11, versión sin soporte; se corrige al actualizar Angular",
+      "aprobado_por": "TI (piloto)",
+      "vence": "2026-12-31"
+    },
+    {
+      "id": "GHSA-58c5-g7wp-6w37",
+      "motivo": "Vulnerabilidad de Angular 11, versión sin soporte; se corrige al actualizar Angular",
+      "aprobado_por": "TI (piloto)",
+      "vence": "2026-12-31"
+    },
+    {
+      "id": "GHSA-ff3f-86qr-9cv3",
+      "motivo": "Vulnerabilidad de Angular 11, versión sin soporte; se corrige al actualizar Angular",
+      "aprobado_por": "TI (piloto)",
+      "vence": "2026-12-31"
+    },
+    {
+      "id": "GHSA-jhpw-976m-542j",
+      "motivo": "Vulnerabilidad de Angular 11, versión sin soporte; se corrige al actualizar Angular",
+      "aprobado_por": "TI (piloto)",
+      "vence": "2026-12-31"
+    },
+    {
+      "id": "GHSA-jj27-h5hq-8x99",
+      "motivo": "Vulnerabilidad de Angular 11, versión sin soporte; se corrige al actualizar Angular",
+      "aprobado_por": "TI (piloto)",
+      "vence": "2026-12-31"
+    },
+    {
+      "id": "GHSA-jrmj-c5cx-3cw6",
+      "motivo": "Vulnerabilidad de Angular 11, versión sin soporte; se corrige al actualizar Angular",
+      "aprobado_por": "TI (piloto)",
+      "vence": "2026-12-31"
+    },
+    {
+      "id": "GHSA-p3vc-36g9-x9gr",
+      "motivo": "Vulnerabilidad de Angular 11, versión sin soporte; se corrige al actualizar Angular",
+      "aprobado_por": "TI (piloto)",
+      "vence": "2026-12-31"
+    },
+    {
+      "id": "GHSA-prjf-86w9-mfqv",
+      "motivo": "Vulnerabilidad de Angular 11, versión sin soporte; se corrige al actualizar Angular",
+      "aprobado_por": "TI (piloto)",
+      "vence": "2026-12-31"
+    },
+    {
+      "id": "GHSA-q6f4-qqrg-jv6x",
+      "motivo": "Vulnerabilidad de Angular 11, versión sin soporte; se corrige al actualizar Angular",
+      "aprobado_por": "TI (piloto)",
+      "vence": "2026-12-31"
+    },
+    {
+      "id": "GHSA-rgjc-h3x7-9mwg",
+      "motivo": "Vulnerabilidad de Angular 11, versión sin soporte; se corrige al actualizar Angular",
+      "aprobado_por": "TI (piloto)",
+      "vence": "2026-12-31"
+    },
+    {
+      "id": "GHSA-v4hv-rgfq-gp49",
+      "motivo": "Vulnerabilidad de Angular 11, versión sin soporte; se corrige al actualizar Angular",
+      "aprobado_por": "TI (piloto)",
+      "vence": "2026-12-31"
+    }
+  ]
+}

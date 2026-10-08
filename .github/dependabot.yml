@@ -1,12 +1,26 @@
-# Actualizaciones automáticas de dependencias: abre pull requests semanales que pasan por el mismo pipeline.
+# Actualizaciones automáticas de dependencias: pull requests semanales que pasan por el mismo pipeline.
+# Se agrupan las actualizaciones menores y de parche en un solo pull request y se excluyen las versiones mayores,
+# que cambian el comportamiento y deben planearse como una tarea aparte (por ejemplo, actualizar Angular o Drupal).
 version: 2
 updates:
   - package-ecosystem: npm
     directory: /
+    target-branch: develop
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
+    groups:
+      dependencias:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
+    target-branch: develop
     schedule:
       interval: monthly
+    groups:
+      acciones:
+        patterns: ["*"]
